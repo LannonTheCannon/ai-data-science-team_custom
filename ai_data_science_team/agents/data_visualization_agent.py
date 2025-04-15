@@ -528,7 +528,7 @@ def make_data_visualization_agent(
         print(format_agent_name(AGENT_NAME))
         print("    * CREATE CHART GENERATOR INSTRUCTIONS")
 
-        # Get the dataframe and metadata
+        # Get dataframe and metadata
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
 
@@ -536,7 +536,6 @@ def make_data_visualization_agent(
             [df], n_sample=n_samples, skip_stats=False
         )
         all_datasets_summary_str = "\n\n".join(all_datasets_summary)
-
         valid_columns_str = "\n".join(df.columns)
 
         recommend_steps_prompt = PromptTemplate(
@@ -547,10 +546,10 @@ def make_data_visualization_agent(
     ============================
 
     🛑 RULES:
-    - You must ONLY use column names listed in the VALID COLUMN NAMES above.
-    - Do NOT guess, invent, or modify column names (e.g. don't create "average_salary_in_usd").
-    - Never substitute or semantically infer alternate column names.
-    - Choose ONE chart instruction only, tailored to real, existing columns.
+    - Use ONLY column names from the list above.
+    - Do NOT guess or create new column names.
+    - Never semantically infer or abbreviate column names.
+    - Choose ONE specific chart instruction using valid columns only.
 
     ---
     USER QUESTION:
@@ -564,44 +563,44 @@ def make_data_visualization_agent(
     ---
 
     🎯 TASK:
-    Return a single chart instruction using existing columns to answer the user's request in a clear way.
+    Return one clear chart instruction using valid columns from the dataset.
 
-    Use this format:
+    Use this exact format:
     CHART GENERATOR INSTRUCTIONS:
-    {...}
+    {{...}}
 
     💡 Examples:
-    - Use "salary" if that’s the real column, not "avg_salary" or "average_salary".
-    - If the user says “job title”, look for a column named "job_title" or whatever exact column you find in VALID COLUMN NAMES.
+    - If "average_salary_in_usd" is the real column, do NOT use "avg_salary" or "salary".
+    - If the user says "job title", map it to the exact column name like "job_title" if it exists.
 
-    Do not mention file saving, external references, or anything not visualization-related.
+    Avoid:
+    1. File saving instructions
+    2. External references
+    3. Anything not related to chart generation
     """,
             input_variables=[
                 "user_instructions",
                 "recommended_steps",
                 "valid_columns",
-                "all_datasets_summary",
+                "all_datasets_summary"
             ],
         )
 
         chart_instructor_chain = recommend_steps_prompt | llm
 
-        recommended_steps = chart_instructor_chain.invoke(
-            {
-                "user_instructions": state.get("user_instructions"),
-                "recommended_steps": state.get("recommended_steps"),
-                "valid_columns": valid_columns_str,
-                "all_datasets_summary": all_datasets_summary_str,
-            }
-        )
+        recommended_steps = chart_instructor_chain.invoke({
+            "user_instructions": state.get("user_instructions"),
+            "recommended_steps": state.get("recommended_steps", ""),
+            "valid_columns": valid_columns_str,
+            "all_datasets_summary": all_datasets_summary_str,
+        })
 
-        # Optional: log output
         print("🔍 CHART INSTRUCTIONS:\n", recommended_steps.content)
 
         return {
             "recommended_steps": format_recommended_steps(
                 recommended_steps.content.strip(),
-                heading="# Recommended Data Visualization Steps:",
+                heading="# Recommended Data Visualization Steps:"
             ),
             "all_datasets_summary": all_datasets_summary_str,
         }
@@ -689,60 +688,52 @@ def make_data_visualization_agent(
 
         if bypass_recommended_steps:
             print(format_agent_name(AGENT_NAME))
-
             data_raw = state.get("data_raw")
             df = pd.DataFrame.from_dict(data_raw)
-
             all_datasets_summary = get_dataframe_summary(
                 [df], n_sample=n_samples, skip_stats=False
             )
-
             all_datasets_summary_str = "\n\n".join(all_datasets_summary)
-
             chart_generator_instructions = state.get("user_instructions")
-
+            valid_columns_str = "\n".join(df.columns)
         else:
             all_datasets_summary_str = state.get("all_datasets_summary")
             chart_generator_instructions = state.get("recommended_steps")
+            df = pd.DataFrame.from_dict(state.get("data_raw"))
+            valid_columns_str = "\n".join(df.columns)
 
         prompt_template = PromptTemplate(
             template="""
-            DO NOT invent column names.
-            Valid column names: {valid_columns}
-            
-            You are a chart generator agent that is an expert in generating plotly charts. You must use plotly or plotly.express to produce plots.
-    
-            Your job is to produce python code to generate visualizations with a function named {function_name}.
-            
-            You will take instructions from a Chart Instructor and generate a plotly chart from the data provided.
-            
-            CHART INSTRUCTIONS: 
-            {chart_generator_instructions}
-            
-            DATA: 
-            {all_datasets_summary}
-            
-            RETURN:
-            
-            Return Python code in ```python ``` format with a single function definition, {function_name}(data_raw), that includes all imports inside the function.
-            
-            Return the plotly chart as a dictionary.
-            
-            Return code to provide the data visualization function:
-            
-            def {function_name}(data_raw):
-                import pandas as pd
-                import numpy as np
-                import json
-                import plotly.graph_objects as go
-                import plotly.io as pio
-                
-                ...
-                
-                fig_json = pio.to_json(fig)
-                fig_dict = json.loads(fig_json)
-                
-                return fig_dict
+    DO NOT invent column names.
+    Valid column names: 
+    {valid_columns}
+
+    You are a chart generator agent that writes expert-level Plotly chart code in Python.
+
+    Your task: Write a reusable function named `{function_name}` that uses Plotly or Plotly Express to generate a chart based on the following instructions and data summary.
+
+    CHART INSTRUCTIONS:
+    {chart_generator_instructions}
+
+    DATA SUMMARY:
+    {all_datasets_summary}
+
+    OUTPUT FORMAT:
+    Return a single Python function like this:
+
+    ```python
+    def {function_name}(data_raw):
+        import pandas as pd
+        import numpy as np
+        import json
+        import plotly.graph_objects as go
+        import plotly.io as pio
+
+        # chart logic here
+
+        fig_json = pio.to_json(fig)
+        fig_dict = json.loads(fig_json)
+        return fig_dict
             
             Avoid these:
             1. Do not include steps to save files.
