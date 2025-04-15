@@ -688,14 +688,17 @@ def make_data_visualization_agent(
 
         if bypass_recommended_steps:
             print(format_agent_name(AGENT_NAME))
+
             data_raw = state.get("data_raw")
             df = pd.DataFrame.from_dict(data_raw)
+
             all_datasets_summary = get_dataframe_summary(
                 [df], n_sample=n_samples, skip_stats=False
             )
             all_datasets_summary_str = "\n\n".join(all_datasets_summary)
             chart_generator_instructions = state.get("user_instructions")
             valid_columns_str = "\n".join(df.columns)
+
         else:
             all_datasets_summary_str = state.get("all_datasets_summary")
             chart_generator_instructions = state.get("recommended_steps")
@@ -734,12 +737,14 @@ def make_data_visualization_agent(
         fig_json = pio.to_json(fig)
         fig_dict = json.loads(fig_json)
         return fig_dict
-            
-            Avoid these:
-            1. Do not include steps to save files.
-            2. Do not include unrelated user instructions that are not related to the chart generation.
-            
-            """,
+    ```
+
+    Do NOT:
+    - Save files
+    - Return code outside of the function
+    - Include explanations or markdown
+    - Reference undefined variables
+    """,
             input_variables=[
                 "chart_generator_instructions",
                 "all_datasets_summary",
@@ -750,18 +755,16 @@ def make_data_visualization_agent(
 
         data_visualization_agent = prompt_template | llm | PythonOutputParser()
 
-        response = data_visualization_agent.invoke(
-            {
-                "chart_generator_instructions": chart_generator_instructions,
-                "all_datasets_summary": all_datasets_summary_str,
-                "function_name": function_name,
-            }
-        )
+        response = data_visualization_agent.invoke({
+            "chart_generator_instructions": chart_generator_instructions,
+            "all_datasets_summary": all_datasets_summary_str,
+            "function_name": function_name,
+            "valid_columns": valid_columns_str,
+        })
 
         response = relocate_imports_inside_function(response)
         response = add_comments_to_top(response, agent_name=AGENT_NAME)
 
-        # For logging: store the code generated:
         file_path, file_name_2 = log_ai_function(
             response=response,
             file_name=file_name,
