@@ -550,6 +550,11 @@ def make_data_visualization_agent(
     - Do NOT guess or create new column names.
     - Never semantically infer or abbreviate column names.
     - Choose ONE specific chart instruction using valid columns only.
+    
+    🛑 RULES:
+    - Use ONLY column names from the list above.
+    - Do NOT guess or create new column names.
+    - Never semantically infer or abbreviate column names.
 
     ---
     USER QUESTION:
