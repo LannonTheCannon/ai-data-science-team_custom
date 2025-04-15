@@ -528,59 +528,53 @@ def make_data_visualization_agent(
         print(format_agent_name(AGENT_NAME))
         print("    * CREATE CHART GENERATOR INSTRUCTIONS")
 
-        # Convert the raw data to DataFrame
+        # Get the dataframe and metadata
         data_raw = state.get("data_raw")
         df = pd.DataFrame.from_dict(data_raw)
 
-        # Generate summary string for the data
         all_datasets_summary = get_dataframe_summary(
             [df], n_sample=n_samples, skip_stats=False
         )
         all_datasets_summary_str = "\n\n".join(all_datasets_summary)
 
-        # Extract the valid column names
         valid_columns_str = "\n".join(df.columns)
 
         recommend_steps_prompt = PromptTemplate(
             template="""
-    You are a supervisor that is an expert in providing instructions to a chart generator agent for plotting.
+    ============================
+    ✅ VALID COLUMN NAMES:
+    {valid_columns}
+    ============================
 
-    You will take a question that a user has and the data that was generated to answer the question, and create instructions to create a chart from the data that will be passed to a chart generator agent.
+    🛑 RULES:
+    - You must ONLY use column names listed in the VALID COLUMN NAMES above.
+    - Do NOT guess, invent, or modify column names (e.g. don't create "average_salary_in_usd").
+    - Never substitute or semantically infer alternate column names.
+    - Choose ONE chart instruction only, tailored to real, existing columns.
 
     ---
-    USER QUESTION / INSTRUCTIONS:
+    USER QUESTION:
     {user_instructions}
 
-    PREVIOUSLY RECOMMENDED INSTRUCTIONS:
+    PREVIOUS INSTRUCTIONS (if any):
     {recommended_steps}
 
-    VALID COLUMNS IN THE DATA:
-    {valid_columns}
-
-    DATA SUMMARY:
+    📊 DATA SUMMARY:
     {all_datasets_summary}
     ---
 
-    🎯 OBJECTIVE:
+    🎯 TASK:
+    Return a single chart instruction using existing columns to answer the user's request in a clear way.
 
-    - Use only the column names listed in VALID COLUMNS.
-    - Never invent or guess column names, even if they seem semantically similar.
-    - Avoid writing “x or y” as column names — pick only one from VALID COLUMNS.
-    - Return a single chart plan that’s clearly aligned with the actual data structure.
-
-    📈 FORMAT:
+    Use this format:
     CHART GENERATOR INSTRUCTIONS:
-    {Your instructions here}
+    {...}
 
-    🔥 TIPS:
-    - Use bar/line/scatter/box plots as appropriate for the user's question and data types.
-    - Treat numeric columns with <10 unique values as categorical.
-    - Make the title informative and include axis labels.
+    💡 Examples:
+    - Use "salary" if that’s the real column, not "avg_salary" or "average_salary".
+    - If the user says “job title”, look for a column named "job_title" or whatever exact column you find in VALID COLUMN NAMES.
 
-    DO NOT:
-    - Include steps to save files.
-    - Generate more than one chart.
-    - Use column names that are not listed in VALID COLUMNS.
+    Do not mention file saving, external references, or anything not visualization-related.
     """,
             input_variables=[
                 "user_instructions",
@@ -590,10 +584,8 @@ def make_data_visualization_agent(
             ],
         )
 
-        # Create the chart instructor agent chain
         chart_instructor_chain = recommend_steps_prompt | llm
 
-        # Run it
         recommended_steps = chart_instructor_chain.invoke(
             {
                 "user_instructions": state.get("user_instructions"),
@@ -603,10 +595,13 @@ def make_data_visualization_agent(
             }
         )
 
+        # Optional: log output
+        print("🔍 CHART INSTRUCTIONS:\n", recommended_steps.content)
+
         return {
             "recommended_steps": format_recommended_steps(
                 recommended_steps.content.strip(),
-                heading="# Recommended Data Cleaning Steps:",
+                heading="# Recommended Data Visualization Steps:",
             ),
             "all_datasets_summary": all_datasets_summary_str,
         }
