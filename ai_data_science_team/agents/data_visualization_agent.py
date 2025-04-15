@@ -707,6 +707,9 @@ def make_data_visualization_agent(
 
         prompt_template = PromptTemplate(
             template="""
+            DO NOT invent column names.
+            Valid column names: {valid_columns}
+            
             You are a chart generator agent that is an expert in generating plotly charts. You must use plotly or plotly.express to produce plots.
     
             Your job is to produce python code to generate visualizations with a function named {function_name}.
@@ -750,7 +753,8 @@ def make_data_visualization_agent(
                 "chart_generator_instructions",
                 "all_datasets_summary",
                 "function_name",
-            ],
+                "valid_columns"
+            ]
         )
 
         data_visualization_agent = prompt_template | llm | PythonOutputParser()
