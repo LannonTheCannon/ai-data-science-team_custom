@@ -712,52 +712,51 @@ def make_data_visualization_agent(
 
         prompt_template = PromptTemplate(
             template="""
-    DO NOT invent column names.
-    Valid column names: 
-    {valid_columns}
+            You are a chart generator agent that is an expert in generating plotly charts. You must use plotly or plotly.express to produce plots.
 
-    You are a chart generator agent that writes expert-level Plotly chart code in Python.
+            Your job is to produce python code to generate visualizations with a function named {function_name}.
 
-    Your task: Write a reusable function named `{function_name}` that uses Plotly or Plotly Express to generate a chart based on the following instructions and data summary.
+            You will take instructions from a Chart Instructor and generate a plotly chart from the data provided.
 
-    CHART INSTRUCTIONS:
-    {chart_generator_instructions}
+            CHART INSTRUCTIONS: 
+            {chart_generator_instructions}
 
-    DATA SUMMARY:
-    {all_datasets_summary}
+            DATA: 
+            {all_datasets_summary}
 
-    OUTPUT FORMAT:
-    Return a single Python function like this:
+            RETURN:
 
-    ```python
-    def {function_name}(data_raw):
-        import pandas as pd
-        import numpy as np
-        import json
-        import plotly.graph_objects as go
-        import plotly.io as pio
+            Return Python code in ```python ``` format with a single function definition, {function_name}(data_raw), that includes all imports inside the function.
 
-        # chart logic here
+            Return the plotly chart as a dictionary.
 
-        fig_json = pio.to_json(fig)
-        fig_dict = json.loads(fig_json)
-        return fig_dict
-    ```
+            Return code to provide the data visualization function:
 
-    Do NOT:
-    - Save files
-    - Return code outside of the function
-    - Include explanations or markdown
-    - Reference undefined variables
-    """,
+            def {function_name}(data_raw):
+                import pandas as pd
+                import numpy as np
+                import json
+                import plotly.graph_objects as go
+                import plotly.io as pio
+
+                ...
+
+                fig_json = pio.to_json(fig)
+                fig_dict = json.loads(fig_json)
+
+                return fig_dict
+
+            Avoid these:
+            1. Do not include steps to save files.
+            2. Do not include unrelated user instructions that are not related to the chart generation.
+
+            """,
             input_variables=[
                 "chart_generator_instructions",
                 "all_datasets_summary",
                 "function_name",
-                "valid_columns"
-            ]
+            ],
         )
-
         data_visualization_agent = prompt_template | llm | PythonOutputParser()
 
         response = data_visualization_agent.invoke({
