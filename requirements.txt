@@ -13,3 +13,4 @@ streamlit
 scikit-learn
 xgboost
 psutil
+security==1.3.1
